@@ -2,15 +2,14 @@ package main
 
 import (
 	"flag"
-
-	"github.com/pkg/errors"
+	"strings"
 )
 
 func (s *Session) readFlags() (err error) {
+	var selectors string
 	flag.StringVar(&s.Path, "tsv", "", "Path to tsv file containing gene list.")
+	flag.StringVar(&selectors, "select", "", "Comma separated list of selectors for gene list.")
 	flag.Parse()
-	if s.Path == "" {
-		err = errors.New("Please indicate a tsv file as input")
-	}
+	s.Selectors = strings.Split(selectors, ",")
 	return
 }
