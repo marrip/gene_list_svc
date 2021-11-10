@@ -28,7 +28,7 @@ func (s Session) getConnectionString() string {
 
 func (s Session) checkTableExists(table string) (err error) {
 	var stmt *sql.Stmt
-	stmt, err = s.DbConnection.Prepare(fmt.Sprintf("SELECT * FROM %s", table)) // Does not work!!!
+	stmt, err = s.DbConnection.Prepare(fmt.Sprintf("SELECT * FROM %s", table))
 	if err != nil {
 		return
 	}
