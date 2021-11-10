@@ -12,6 +12,7 @@ type Session struct {
 	DbName       string `env:"DB_NAME" envDefault:"gene_list"`
 	DbConnection *sql.DB
 	Path         string
+	Selectors    []string
 }
 
 type Entity struct {
