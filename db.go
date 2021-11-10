@@ -5,9 +5,48 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 
 	"github.com/pkg/errors"
 )
+
+func (s Session) checkEntityExists(entity Entity) (exists bool) {
+	stmt, err := s.DbConnection.Prepare(fmt.Sprintf("SELECT EXISTS (SELECT id FROM entity WHERE id = '%s');", entity.Id))
+	if err != nil {
+		return
+	}
+	defer stmt.Close()
+	var rows *sql.Rows
+	rows, err = stmt.Query()
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		err = rows.Scan(&exists)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
+func (s Session) updateEntity(entity Entity) (err error) {
+	updateString := strings.Join(append(entity.Analysis, entity.Diagnosis...), " = true, ")
+	stmt, err := s.DbConnection.Prepare(fmt.Sprintf("UPDATE entity SET %s = true WHERE id = '%s';", updateString, entity.Id))
+	if err != nil {
+		err = errors.Wrap(err, fmt.Sprintf("Could not update entity %s", entity.Id))
+		return
+	}
+	defer stmt.Close()
+	_, err = stmt.Exec()
+	if err != nil {
+		err = errors.Wrap(err, fmt.Sprintf("Could not update entity %s", entity.Id))
+		return
+	}
+	log.Println(fmt.Sprintf("Entity %s was updated.", entity.Id))
+	return
+}
 
 func fillSlice(values []string, valueMap map[string]bool) (boolSlice []bool) {
 	for _, value := range values {
@@ -57,16 +96,70 @@ func (s Session) addEntity(entity Entity) (err error) {
 	_, err = stmt.Exec()
 	if err != nil {
 		err = errors.Wrap(err, fmt.Sprintf("Could not add entity %s", entity.Id))
+		return
 	}
+	log.Println(fmt.Sprintf("Entity %s was added to database.", entity.Id))
 	return
 }
 
 func (s Session) addEntities(entities []Entity) {
 	for _, entity := range entities {
-		if err := s.addEntity(entity); err != nil {
-			err = errors.Wrap(err, fmt.Sprintf("Could not add entity %s", entity.Id))
-			log.Printf("%v", err)
+		if s.checkEntityExists(entity) {
+			err := s.updateEntity(entity)
+			if err != nil {
+				log.Printf("%v", err)
+			}
+		} else {
+			if err := s.addEntity(entity); err != nil {
+				err = errors.Wrap(err, fmt.Sprintf("Could not add entity %s", entity.Id))
+				log.Printf("%v", err)
+			}
 		}
+	}
+	return
+}
+
+func (s Session) getEntityList(columns []string) (ids []string, err error) {
+	var stmt *sql.Stmt
+	queryString := strings.Join(columns, " = true AND ")
+	stmt, err = s.DbConnection.Prepare(fmt.Sprintf("SELECT id FROM entity WHERE %s = true;", queryString))
+	if err != nil {
+		return
+	}
+	defer stmt.Close()
+	var rows *sql.Rows
+	rows, err = stmt.Query()
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	var id string
+	for rows.Next() {
+		err = rows.Scan(&id)
+		if err != nil {
+			return
+		}
+		ids = append(ids, id)
+	}
+	return
+}
+
+func (s Session) setGetDb() (err error) {
+	if s.Path != "" {
+		var entities []Entity
+		entities, err = tsvToEntities(s.Path)
+		if err != nil {
+			return
+		}
+		s.addEntities(entities)
+	}
+	if len(s.Selectors) > 0 {
+		var ids []string
+		ids, err = s.getEntityList(s.Selectors)
+		if err != nil {
+			return
+		}
+		fmt.Println(ids)
 	}
 	return
 }
