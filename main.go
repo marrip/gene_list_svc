@@ -9,14 +9,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	if err = s.initDb(); err != nil {
-		log.Fatalf("%v", err)
-	}
 	defer s.DbConnection.Close()
-	//entities, err := tsvToEntities("test.tsv")
-	//if err != nil {
-	//	log.Fatalf("%v", err)
-	//}
-	//s.addEntities(entities)
-	//log.Println("All done")
+	if s.Tsv != "" {
+		err = s.prepAndAddEntities()
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+	}
+	if s.List != "" && s.Analysis != "" {
+		err = s.coordinatesToBed()
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+	}
 }
