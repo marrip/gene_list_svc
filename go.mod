@@ -7,4 +7,8 @@ require (
 	github.com/pkg/errors v0.9.1
 )
 
-require github.com/lib/pq v1.10.3 // indirect
+require (
+	github.com/go-test/deep v1.0.8 // indirect
+	github.com/lib/pq v1.10.3 // indirect
+	github.com/mpvl/unique v0.0.0-20150818121801-cbe035fff7de // indirect
+)
