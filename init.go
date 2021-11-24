@@ -1,14 +1,61 @@
 package main
 
 import (
-	"database/sql"
+	"flag"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/caarlos0/env/v6"
 	_ "github.com/lib/pq"
 	"github.com/pkg/errors"
 )
+
+func sliceContainsString(arg string, slice []string) bool {
+	for _, element := range slice {
+		if arg == element {
+			return true
+		}
+	}
+	return false
+}
+
+func (s Session) checkListAndAnalysis() (err error) {
+	if s.Analysis == "" && s.List == "" {
+		return
+	} else if (s.Analysis == "" && s.List != "") || (s.Analysis != "" && s.List == "") {
+		err = errors.New("The flags -list and -analysis need to be used together")
+	} else if !sliceContainsString(s.List, lists) {
+		err = errors.New(fmt.Sprintf("Please choose a valid list (%s)", strings.Join(lists, ", ")))
+	} else if !sliceContainsString(s.Analysis, analyses) {
+		err = errors.New(fmt.Sprintf("Please choose a valid analysis (%s)", strings.Join(analyses, ", ")))
+	}
+	return
+}
+
+func (s *Session) modifyFlagInput() {
+	if s.Analysis != "" && s.List != "" {
+		if s.Bed == "" {
+			s.Bed = fmt.Sprintf("%s_%s.bed", s.List, s.Analysis)
+		}
+		if s.List != "" {
+			s.DbList = fmt.Sprintf("list_%s", s.List)
+		}
+	}
+}
+
+func (s *Session) readFlags() (err error) {
+	flag.StringVar(&s.Analysis, "analysis", "", fmt.Sprintf("Select analysis (%s)", strings.Join(analyses, ", ")))
+	flag.StringVar(&s.Bed, "bed", "", "Output bed file name.")
+	flag.StringVar(&s.List, "list", "", fmt.Sprintf("Select gene list (%s)", strings.Join(lists, ", ")))
+	flag.StringVar(&s.Tsv, "tsv", "", "Path to tsv file containing gene list.")
+	flag.Parse()
+	if err = s.checkListAndAnalysis(); err != nil {
+		return
+	}
+	s.modifyFlagInput()
+	return
+}
 
 func initSession() (session Session, err error) {
 	if err = env.Parse(&session); err != nil {
@@ -19,58 +66,9 @@ func initSession() (session Session, err error) {
 		return
 	}
 	log.Println("Successfully read flags.")
-	return
-}
-
-func (s Session) getConnectionString() string {
-	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", s.DbHost, s.DbPort, s.DbUser, s.DbPassword, s.DbName)
-}
-
-func (s Session) checkTableExists(table string) (err error) {
-	var stmt *sql.Stmt
-	stmt, err = s.DbConnection.Prepare(fmt.Sprintf("SELECT * FROM %s", table))
-	if err != nil {
+	if err = session.initDb(); err != nil {
 		return
 	}
-	defer stmt.Close()
-	var rows *sql.Rows
-	rows, err = stmt.Query()
-	if err != nil {
-		return
-	}
-	defer rows.Close()
-	return
-}
-
-func (s Session) createDbTable() (err error) {
-	for key, cmd := range tables {
-		if err = s.checkTableExists(key); err == nil {
-			return
-		} else {
-			var stmt *sql.Stmt
-			stmt, err = s.DbConnection.Prepare(fmt.Sprintf("CREATE TABLE %s (%s)", key, cmd))
-			if err != nil {
-				return
-			}
-			defer stmt.Close()
-			_, err = stmt.Exec()
-			if err != nil {
-				return
-			}
-			log.Println(fmt.Sprintf("Table %s was added to database %s.", key, s.DbName))
-		}
-	}
-	return
-}
-
-func (s *Session) initDb() (err error) {
-	if s.DbConnection, err = sql.Open("postgres", s.getConnectionString()); err != nil {
-		err = errors.Wrap(err, fmt.Sprintf("Could not establish connection to database %s.", s.DbName))
-		return
-	}
-	if err = s.DbConnection.Ping(); err != nil {
-		err = errors.Wrap(err, fmt.Sprintf("Could not establish connection to database %s.", s.DbName))
-	}
-	err = s.createDbTable()
+	log.Println("Successfully initialized database.")
 	return
 }
