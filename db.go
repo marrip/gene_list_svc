@@ -4,20 +4,77 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"sort"
 	"strings"
 
 	"github.com/pkg/errors"
 )
 
-func (s Session) checkEntityExists(entity Entity) (exists bool) {
-	stmt, err := s.DbConnection.Prepare(fmt.Sprintf("SELECT EXISTS (SELECT id FROM entity WHERE id = '%s');", entity.Id))
+func (s Session) getConnectionString() string {
+	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", s.DbHost, s.DbPort, s.DbUser, s.DbPassword, s.DbName)
+}
+
+func (s Session) dbExec(query string) (err error) {
+	var stmt *sql.Stmt
+	stmt, err = s.DbConnection.Prepare(query)
 	if err != nil {
 		return
 	}
 	defer stmt.Close()
-	var rows *sql.Rows
+	_, err = stmt.Exec()
+	return
+}
+
+func (s Session) dbQuery(query string) (rows *sql.Rows, err error) {
+	var stmt *sql.Stmt
+	stmt, err = s.DbConnection.Prepare(query)
+	if err != nil {
+		return
+	}
+	defer stmt.Close()
 	rows, err = stmt.Query()
+	return
+}
+
+func (s Session) checkTableExists(table string) (err error) {
+	var rows *sql.Rows
+	if rows, err = s.dbQuery(fmt.Sprintf("SELECT * FROM %s", table)); err != nil {
+		return
+	}
+	defer rows.Close()
+	return
+}
+
+func (s Session) createTable(table string) (err error) {
+	if err = s.dbExec(fmt.Sprintf("CREATE TABLE %s (id varchar(20) NOT NULL, ensembl varchar(20) NOT NULL, class varchar(10) NOT NULL, %s boolean, PRIMARY KEY (id))", table, strings.Join(analyses, " boolean, "))); err != nil {
+		return
+	}
+	log.Println(fmt.Sprintf("Table %s was added to database %s.", table, s.DbName))
+	return
+}
+
+func (s *Session) initDb() (err error) {
+	if s.DbConnection, err = sql.Open("postgres", s.getConnectionString()); err != nil {
+		err = errors.Wrap(err, fmt.Sprintf("Could not establish connection to database %s.", s.DbName))
+		return
+	}
+	if err = s.DbConnection.Ping(); err != nil {
+		err = errors.Wrap(err, fmt.Sprintf("Could not establish connection to database %s.", s.DbName))
+	}
+	for _, list := range lists {
+		if err = s.checkTableExists(fmt.Sprintf("list_%s", list)); err == nil {
+			continue
+		} else {
+			if err = s.createTable(fmt.Sprintf("list_%s", list)); err != nil {
+				err = errors.Wrap(err, fmt.Sprintf("Could not create table %s", list))
+				return
+			}
+		}
+	}
+	return
+}
+
+func (s Session) checkEntityExists(table string, entity Entity) (exists bool) {
+	rows, err := s.dbQuery(fmt.Sprintf("SELECT EXISTS (SELECT id FROM %s WHERE id = '%s');", table, entity.Id))
 	if err != nil {
 		return
 	}
@@ -31,135 +88,47 @@ func (s Session) checkEntityExists(entity Entity) (exists bool) {
 	return
 }
 
-func (s Session) updateEntity(entity Entity) (err error) {
-	updateString := strings.Join(append(entity.Analysis, entity.Diagnosis...), " = true, ")
-	stmt, err := s.DbConnection.Prepare(fmt.Sprintf("UPDATE entity SET %s = true WHERE id = '%s';", updateString, entity.Id))
+func (s Session) updateEntity(table string, entity Entity) (err error) {
+	var analyses []string
+	for key, _ := range entity.Analyses {
+		analyses = append(analyses, key)
+	}
+	updateString := strings.Join(analyses, " = true, ")
+	err = s.dbExec(fmt.Sprintf("UPDATE %s SET %s = true WHERE id = '%s';", table, updateString, entity.Id))
 	if err != nil {
-		err = errors.Wrap(err, fmt.Sprintf("Could not update entity %s", entity.Id))
+		err = errors.Wrap(err, fmt.Sprintf("Could not update entity %s in table %s", entity.Id, table))
 		return
 	}
-	defer stmt.Close()
-	_, err = stmt.Exec()
+	log.Printf("Entity %s in table %s was updated.", entity.Id, table)
+	return
+}
+
+func (s Session) addEntity(table string, entity Entity) (err error) {
+	err = s.dbExec(fmt.Sprintf("INSERT INTO %s (id, ensembl, class, snv, cnv, sv, pindel) VALUES ('%s', '%s', '%s', %t, %t, %t, %t)", table, entity.Id, entity.EnsemblId, entity.Class, entity.Analyses["snv"], entity.Analyses["cnv"], entity.Analyses["sv"], entity.Analyses["pindel"]))
 	if err != nil {
-		err = errors.Wrap(err, fmt.Sprintf("Could not update entity %s", entity.Id))
+		err = errors.Wrap(err, fmt.Sprintf("Could not add entity %s to table %s", entity.Id, table))
 		return
 	}
-	log.Println(fmt.Sprintf("Entity %s was updated.", entity.Id))
+	log.Printf("Entity %s was added to table %s", entity.Id, table)
 	return
 }
 
-func fillSlice(values []string, valueMap map[string]bool) (boolSlice []bool) {
-	for _, value := range values {
-		valueMap[value] = true
-	}
-	var keys []string
-	for key, _ := range valueMap {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		boolSlice = append(boolSlice, valueMap[key])
-	}
-	return
-}
-
-func (e Entity) getAnalysisBool() (analysisBoolsSlice []bool) {
-	analysisBoolsMap := map[string]bool{
-		"cnv":    false,
-		"pindel": false,
-		"snv":    false,
-		"sv":     false,
-	}
-	analysisBoolsSlice = fillSlice(e.Analysis, analysisBoolsMap)
-	return
-}
-
-func (e Entity) getDiagnosisBool() (diagnosisBoolsSlice []bool) {
-	diagnosisBoolsMap := map[string]bool{
-		"list_all":     false,
-		"list_aml":     false,
-		"list_aml_ext": false,
-	}
-	diagnosisBoolsSlice = fillSlice(e.Diagnosis, diagnosisBoolsMap)
-	return
-}
-
-func (s Session) addEntity(entity Entity) (err error) {
-	var stmt *sql.Stmt
-	analysisSlice := entity.getAnalysisBool()
-	diagnosisSlice := entity.getDiagnosisBool()
-	stmt, err = s.DbConnection.Prepare(fmt.Sprintf("INSERT INTO entity (id, class, cnv, pindel, snv, sv, list_all, list_aml, list_aml_ext) VALUES ('%s', '%s', %t, %t, %t, %t, %t, %t, %t)", entity.Id, entity.Class, analysisSlice[0], analysisSlice[1], analysisSlice[2], analysisSlice[3], diagnosisSlice[0], diagnosisSlice[1], diagnosisSlice[2]))
-	if err != nil {
-		return
-	}
-	defer stmt.Close()
-	_, err = stmt.Exec()
-	if err != nil {
-		err = errors.Wrap(err, fmt.Sprintf("Could not add entity %s", entity.Id))
-		return
-	}
-	log.Println(fmt.Sprintf("Entity %s was added to database.", entity.Id))
-	return
-}
-
-func (s Session) addEntities(entities []Entity) {
-	for _, entity := range entities {
-		if s.checkEntityExists(entity) {
-			err := s.updateEntity(entity)
-			if err != nil {
-				log.Printf("%v", err)
-			}
-		} else {
-			if err := s.addEntity(entity); err != nil {
-				err = errors.Wrap(err, fmt.Sprintf("Could not add entity %s", entity.Id))
-				log.Printf("%v", err)
-			}
-		}
-	}
-	return
-}
-
-func (s Session) getEntityList(columns []string) (ids []string, err error) {
-	var stmt *sql.Stmt
-	queryString := strings.Join(columns, " = true AND ")
-	stmt, err = s.DbConnection.Prepare(fmt.Sprintf("SELECT id FROM entity WHERE %s = true;", queryString))
-	if err != nil {
-		return
-	}
-	defer stmt.Close()
+func (s Session) getEntityList(table string, column string) (ids []Entity, err error) {
+	log.Printf("Retriewing %s gene list from %s", column, table)
 	var rows *sql.Rows
-	rows, err = stmt.Query()
-	if err != nil {
-		return
+	if table == "list_aml_ext" {
+		rows, err = s.dbQuery(fmt.Sprintf("SELECT id, ensembl FROM %s FULL OUTER JOIN list_aml USING (id, ensembl) WHERE %s.%s = true OR list_aml.%s = true;", table, table, column, column))
+	} else {
+		rows, err = s.dbQuery(fmt.Sprintf("SELECT id, ensembl FROM %s WHERE %s = true;", table, column))
 	}
 	defer rows.Close()
-	var id string
+	var id Entity
 	for rows.Next() {
-		err = rows.Scan(&id)
+		err = rows.Scan(&id.Id, &id.EnsemblId)
 		if err != nil {
 			return
 		}
 		ids = append(ids, id)
-	}
-	return
-}
-
-func (s Session) setGetDb() (err error) {
-	if s.Path != "" {
-		var entities []Entity
-		entities, err = tsvToEntities(s.Path)
-		if err != nil {
-			return
-		}
-		s.addEntities(entities)
-	}
-	if len(s.Selectors) > 0 {
-		var ids []string
-		ids, err = s.getEntityList(s.Selectors)
-		if err != nil {
-			return
-		}
-		fmt.Println(ids)
 	}
 	return
 }
