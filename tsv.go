@@ -24,15 +24,20 @@ func readTsv(path string) (data [][]string, err error) {
 	return
 }
 
-func writeTsv(path string) (tsv *csv.Writer, err error) {
+func writeTsv(path string, data [][]string) (err error) {
 	tsvFile, err := os.Create(path)
 	if err != nil {
-		err = errors.Wrap(err, fmt.Sprintf("Could not create tsv file %s", path))
+		err = errors.Wrap(err, fmt.Sprintf("Could not create bed file %s", path))
 		return
 	}
 	defer tsvFile.Close()
-	tsv = csv.NewWriter(tsvFile)
+	tsv := csv.NewWriter(tsvFile)
 	tsv.Comma = '\t'
 	defer tsv.Flush()
+	err = tsv.WriteAll(data)
+	if err != nil {
+		err = errors.Wrap(err, fmt.Sprintf("Could not write to file %s", path))
+		return
+	}
 	return
 }

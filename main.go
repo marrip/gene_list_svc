@@ -17,7 +17,7 @@ func main() {
 		}
 	}
 	if s.List != "" && s.Analysis != "" {
-		err = s.coordinatesToBed()
+		err = s.getCoordinatesforEntities()
 		if err != nil {
 			log.Fatalf("%v", err)
 		}

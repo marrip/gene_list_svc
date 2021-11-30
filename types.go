@@ -51,7 +51,6 @@ type EnsemblGeneObj struct {
 	Start       int               `json:"start"`
 	End         int               `json:"end"`
 	Transcripts []EnsemblTransObj `json:"Transcript"`
-	Exons       []EnsemblExonObj
 }
 
 type EnsemblTransObj struct {
@@ -63,9 +62,8 @@ type EnsemblTransObj struct {
 }
 
 type EnsemblExonObj struct {
-	EnsemblId    string `json:"id"`
-	TranscriptId string
-	Chromosome   string `json:"seq_region_name"`
-	Start        int    `json:"start"`
-	End          int    `json:"end"`
+	EnsemblId  string `json:"id"`
+	Chromosome string `json:"seq_region_name"`
+	Start      int    `json:"start"`
+	End        int    `json:"end"`
 }
