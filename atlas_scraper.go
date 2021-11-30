@@ -82,7 +82,7 @@ func extractFusions(line string) (fusions []string, err error) {
 func unique(slice []string) (uniqueSlice []string) {
 	keys := make(map[string]bool)
 	for _, entry := range slice {
-		if keys[entry] {
+		if !keys[entry] {
 			keys[entry] = true
 			uniqueSlice = append(uniqueSlice, entry)
 		}
