@@ -33,6 +33,18 @@ func (s Session) checkListAndAnalysis() (err error) {
 	return
 }
 
+func (s *Session) checkBuild() (err error) {
+	if s.Build == "" {
+		s.Build = "38"
+		return
+	} else if sliceContainsString(s.Build, builds) {
+		return
+	} else {
+		err = errors.New(fmt.Sprintf("Please choose a valid genome build (%s)", strings.Join(builds, ", ")))
+	}
+	return
+}
+
 func (s *Session) modifyFlagInput() {
 	if s.Analysis != "" && s.List != "" {
 		if s.Bed == "" {
@@ -47,10 +59,14 @@ func (s *Session) modifyFlagInput() {
 func (s *Session) readFlags() (err error) {
 	flag.StringVar(&s.Analysis, "analysis", "", fmt.Sprintf("Select analysis (%s)", strings.Join(analyses, ", ")))
 	flag.StringVar(&s.Bed, "bed", "", "Output bed file name.")
+	flag.StringVar(&s.Build, "build", "", fmt.Sprintf("Select genome build (%s)", strings.Join(builds, ", ")))
 	flag.StringVar(&s.List, "list", "", fmt.Sprintf("Select gene list (%s)", strings.Join(lists, ", ")))
 	flag.StringVar(&s.Tsv, "tsv", "", "Path to tsv file containing gene list.")
 	flag.Parse()
 	if err = s.checkListAndAnalysis(); err != nil {
+		return
+	}
+	if err = s.checkBuild(); err != nil {
 		return
 	}
 	s.modifyFlagInput()

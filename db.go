@@ -45,7 +45,7 @@ func (s Session) checkTableExists(table string) (err error) {
 }
 
 func (s Session) createTable(table string) (err error) {
-	if err = s.dbExec(fmt.Sprintf("CREATE TABLE %s (id varchar(20) NOT NULL, ensembl varchar(20) NOT NULL, class varchar(10) NOT NULL, %s boolean, PRIMARY KEY (id))", table, strings.Join(analyses, " boolean, "))); err != nil {
+	if err = s.dbExec(fmt.Sprintf("CREATE TABLE %s (id varchar(20) NOT NULL, ensembl38 varchar(20) NOT NULL, ensembl37 varchar(20) NOT NULL, class varchar(10) NOT NULL, %s boolean, PRIMARY KEY (id))", table, strings.Join(analyses, " boolean, "))); err != nil {
 		return
 	}
 	log.Println(fmt.Sprintf("Table %s was added to database %s.", table, s.DbName))
@@ -104,7 +104,7 @@ func (s Session) updateEntity(table string, entity Entity) (err error) {
 }
 
 func (s Session) addEntity(table string, entity Entity) (err error) {
-	err = s.dbExec(fmt.Sprintf("INSERT INTO %s (id, ensembl, class, snv, cnv, sv, pindel) VALUES ('%s', '%s', '%s', %t, %t, %t, %t)", table, entity.Id, entity.EnsemblId, entity.Class, entity.Analyses["snv"], entity.Analyses["cnv"], entity.Analyses["sv"], entity.Analyses["pindel"]))
+	err = s.dbExec(fmt.Sprintf("INSERT INTO %s (id, ensembl38, ensembl37, class, snv, cnv, sv, pindel) VALUES ('%s', '%s', '%s', '%s', %t, %t, %t, %t)", table, entity.Id, entity.Ensembl38Id, entity.Ensembl37Id, entity.Class, entity.Analyses["snv"], entity.Analyses["cnv"], entity.Analyses["sv"], entity.Analyses["pindel"]))
 	if err != nil {
 		err = errors.Wrap(err, fmt.Sprintf("Could not add entity %s to table %s", entity.Id, table))
 		return
@@ -113,22 +113,25 @@ func (s Session) addEntity(table string, entity Entity) (err error) {
 	return
 }
 
-func (s Session) getEntityList(table string, column string) (ids []Entity, err error) {
-	log.Printf("Retriewing %s gene list from %s", column, table)
+func (s Session) getEntityList() (entities []Entity, err error) {
+	log.Printf("Retriewing %s gene list from %s", s.Analysis, s.DbList)
 	var rows *sql.Rows
-	if table == "list_aml_ext" {
-		rows, err = s.dbQuery(fmt.Sprintf("SELECT id, ensembl FROM %s FULL OUTER JOIN list_aml USING (id, ensembl) WHERE %s.%s = true OR list_aml.%s = true;", table, table, column, column))
+	if s.DbList == "list_aml_ext" {
+		rows, err = s.dbQuery(fmt.Sprintf("SELECT id, ensembl38, ensembl37 FROM %s FULL OUTER JOIN list_aml USING (id, ensembl38, ensembl37) WHERE %s.%s = true OR list_aml.%s = true;", s.DbList, s.DbList, s.Analysis, s.Analysis))
 	} else {
-		rows, err = s.dbQuery(fmt.Sprintf("SELECT id, ensembl FROM %s WHERE %s = true;", table, column))
+		rows, err = s.dbQuery(fmt.Sprintf("SELECT id, ensembl38, ensembl37 FROM %s WHERE %s = true;", s.DbList, s.Analysis))
 	}
 	defer rows.Close()
-	var id Entity
+	var entity Entity
 	for rows.Next() {
-		err = rows.Scan(&id.Id, &id.EnsemblId)
+		err = rows.Scan(&entity.Id, &entity.Ensembl38Id, &entity.Ensembl37Id)
 		if err != nil {
 			return
 		}
-		ids = append(ids, id)
+		entities = append(entities, entity)
+	}
+	if len(entities) == 0 {
+		err = errors.New(fmt.Sprintf("Could not find any data for %s in table %s", s.Analysis, s.DbList))
 	}
 	return
 }

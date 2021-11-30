@@ -7,28 +7,39 @@ import (
 	"regexp"
 )
 
-func (s Session) getEnsemblIdUrl(gene string) string {
-	return fmt.Sprintf("%s/xrefs/symbol/homo_sapiens/%s?content-type=application/json", s.EnsemblRestUrl, gene)
+func (s Session) getBuildUrl(build string) string {
+	if build == "37" {
+		return s.Ensembl37RestUrl
+	}
+	return s.Ensembl38RestUrl
 }
 
-func (s Session) getEnsemblSmallGeneUrl(id string) string {
-	return fmt.Sprintf("%s/lookup/id/%s?content-type=application/json", s.EnsemblRestUrl, id)
+func (s Session) getEnsemblIdUrl(gene string, build string) string {
+	return fmt.Sprintf("%s/xrefs/symbol/homo_sapiens/%s?content-type=application/json", s.getBuildUrl(build), gene)
 }
 
-func (s Session) checkEnsemblIdChromosome(id string) (isMain bool, err error) {
-	body, err := sendHttpRequest(s.getEnsemblSmallGeneUrl(id))
+func (s Session) getEnsemblSmallGeneUrl(id string, build string) string {
+	return fmt.Sprintf("%s/lookup/id/%s?content-type=application/json", s.getBuildUrl(build), id)
+}
+
+func (s Session) checkEnsemblIdChromosome(id string, build string) (isMain bool, err error) {
+	body, err := sendHttpRequest(s.getEnsemblSmallGeneUrl(id, build))
 	if err != nil {
 		return
 	}
 	var jsonObj EnsemblGeneObj
 	json.Unmarshal(body, &jsonObj)
-	isMain = chromosomes[jsonObj.Chromosome]
+	for _, chromosome := range chromosomes {
+		if chromosome == jsonObj.Chromosome {
+			isMain = true
+		}
+	}
 	return
 }
 
-func (s Session) getEnsemblId(gene string) (id string, err error) {
+func (s Session) getEnsemblId(gene string, build string) (id string, err error) {
 	ensemblRegex := regexp.MustCompile("ENSG")
-	body, err := sendHttpRequest(s.getEnsemblIdUrl(gene))
+	body, err := sendHttpRequest(s.getEnsemblIdUrl(gene, build))
 	if err != nil {
 		return
 	}
@@ -37,7 +48,7 @@ func (s Session) getEnsemblId(gene string) (id string, err error) {
 	for _, element := range jsonObj {
 		if ensemblRegex.MatchString(element.EnsemblId) {
 			var isMain bool
-			isMain, err = s.checkEnsemblIdChromosome(element.EnsemblId)
+			isMain, err = s.checkEnsemblIdChromosome(element.EnsemblId, build)
 			if err != nil {
 				return
 			}
@@ -52,14 +63,18 @@ func (s Session) getEnsemblId(gene string) (id string, err error) {
 
 func (s Session) getEnsemblIds(entities []Entity) (updates []Entity, err error) {
 	for _, entity := range entities {
-		entity.EnsemblId, err = s.getEnsemblId(entity.Id)
+		entity.Ensembl38Id, err = s.getEnsemblId(entity.Id, "38")
 		if err != nil {
 			return
 		}
-		if entity.EnsemblId != "" {
+		entity.Ensembl37Id, err = s.getEnsemblId(entity.Id, "37")
+		if err != nil {
+			return
+		}
+		if entity.Ensembl38Id != "" || entity.Ensembl37Id != "" {
 			updates = append(updates, entity)
 		} else if unknownIds[entity.Id] != "" {
-			entity.EnsemblId = unknownIds[entity.Id]
+			entity.Ensembl38Id = unknownIds[entity.Id]
 			updates = append(updates, entity)
 		} else {
 			log.Printf("Did not find Ensembl entry for %s", entity.Id)
@@ -69,7 +84,7 @@ func (s Session) getEnsemblIds(entities []Entity) (updates []Entity, err error) 
 }
 
 func (s Session) getEnsemblCoordUrl(gene string) string {
-	return fmt.Sprintf("%s/lookup/id/%s?content-type=application/json;expand=1", s.EnsemblRestUrl, gene)
+	return fmt.Sprintf("%s/lookup/id/%s?content-type=application/json;expand=1", s.getBuildUrl(s.Build), gene)
 }
 
 func (s Session) getCoordinates(id string) (coordinates EnsemblGeneObj, err error) {

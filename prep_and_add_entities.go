@@ -37,14 +37,17 @@ func (s Session) checkAndAddEntity(list string, entity Entity) (err error) {
 			return
 		}
 	} else {
-		if entity.EnsemblId, err = s.getEnsemblId(entity.Id); err != nil {
+		if entity.Ensembl38Id, err = s.getEnsemblId(entity.Id, "38"); err != nil {
 			return
 		}
-		if entity.EnsemblId != "" {
+		if entity.Ensembl37Id, err = s.getEnsemblId(entity.Id, "37"); err != nil {
+			return
+		}
+		if entity.Ensembl38Id != "" || entity.Ensembl37Id != "" {
 			err = s.addEntity(fmt.Sprintf("list_%s", list), entity)
 			return
 		} else if unknownIds[entity.Id] != "" {
-			entity.EnsemblId = unknownIds[entity.Id]
+			entity.Ensembl38Id = unknownIds[entity.Id]
 			err = s.addEntity(fmt.Sprintf("list_%s", list), entity)
 			return
 		} else {
