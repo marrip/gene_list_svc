@@ -93,7 +93,7 @@ func overlapAnnotation(regions []Region) (annotation string) {
 	return
 }
 
-func sortAndMergeRegions(regions []Region) (lines [][]string, err error) {
+func sortAndMergeRegions(regions []Region, prefix string) (lines [][]string, err error) {
 	sort.SliceStable(regions, func(i, j int) bool { return regions[i].Start < regions[j].Start })
 	regions = sortChromosomes(regions)
 	var overlapRegions []Region
@@ -103,7 +103,7 @@ func sortAndMergeRegions(regions []Region) (lines [][]string, err error) {
 		} else if regionOverlap(regions[i-1], region) {
 			overlapRegions = append(overlapRegions, region)
 		} else {
-			lines = append(lines, []string{overlapRegions[0].Chromosome, strconv.Itoa(overlapRegions[0].Start), strconv.Itoa(overlapRegions[len(overlapRegions)-1].End), overlapAnnotation(overlapRegions)})
+			lines = append(lines, []string{fmt.Sprintf("%s%s", prefix, overlapRegions[0].Chromosome), strconv.Itoa(overlapRegions[0].Start), strconv.Itoa(overlapRegions[len(overlapRegions)-1].End), overlapAnnotation(overlapRegions)})
 			overlapRegions = []Region{region}
 		}
 	}
@@ -137,8 +137,12 @@ func (s Session) getCoordinatesforEntities() (err error) {
 			return
 		}
 	}
+	var prefix string
+	if s.Chr {
+		prefix = "chr"
+	}
 	var lines [][]string
-	lines, err = sortAndMergeRegions(regions)
+	lines, err = sortAndMergeRegions(regions, prefix)
 	if err != nil {
 		return
 	}

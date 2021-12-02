@@ -18,6 +18,7 @@ type Session struct {
 	Analysis         string
 	Bed              string
 	Build            string
+	Chr              bool
 	List             string
 	Tsv              string
 }

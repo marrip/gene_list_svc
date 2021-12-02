@@ -60,6 +60,7 @@ func (s *Session) readFlags() (err error) {
 	flag.StringVar(&s.Analysis, "analysis", "", fmt.Sprintf("Select analysis (%s).", strings.Join(analyses, ", ")))
 	flag.StringVar(&s.Bed, "bed", "", "Output bed file name (default: [list]_[analysis]_[build].bed).")
 	flag.StringVar(&s.Build, "build", "", fmt.Sprintf("Select genome build (%s; default: 38).", strings.Join(builds, ", ")))
+	flag.BoolVar(&s.Chr, "chr", false, "Use chr prefix for chromosome names")
 	flag.StringVar(&s.List, "list", "", fmt.Sprintf("Select gene list (%s).", strings.Join(lists, ", ")))
 	flag.StringVar(&s.Tsv, "tsv", "", "Path to tsv file containing gene list.")
 	flag.Parse()
