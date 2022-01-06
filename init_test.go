@@ -99,6 +99,38 @@ func TestCheckListAndAnalysis(t *testing.T) {
 	}
 }
 
+func TestCheckBuild(t *testing.T) {
+	var cases = map[string]struct {
+		session Session
+		wantErr bool
+	}{
+		"Build is 38": {
+			Session{
+				Build: "38",
+			},
+			false,
+		},
+		"Build is 37": {
+			Session{
+				Build: "37",
+			},
+			false,
+		},
+		"Wrong build": {
+			Session{
+				Build: "40",
+			},
+			true,
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			err := c.session.checkBuild()
+			checkError(t, err, c.wantErr)
+		})
+	}
+}
+
 func TestModifyFlagInput(t *testing.T) {
 	var cases = map[string]struct {
 		session Session
@@ -121,11 +153,13 @@ func TestModifyFlagInput(t *testing.T) {
 			Session{
 				Analysis: "snv",
 				Bed:      "",
+				Build:    "38",
 				List:     "aml",
 			},
 			Session{
 				Analysis: "snv",
-				Bed:      "aml_snv.bed",
+				Bed:      "aml_snv_38.bed",
+				Build:    "38",
 				List:     "aml",
 				DbList:   "list_aml",
 			},
@@ -161,10 +195,11 @@ func TestReadFlags(t *testing.T) {
 		wantErr bool
 	}{
 		"All flags set": {
-			[]string{"", "-analysis", "snv", "-bed", "aml_snv.bed", "-list", "aml", "-tsv", "aml_snv.tsv"},
+			[]string{"", "-analysis", "snv", "-bed", "aml_snv.bed", "-build", "38", "-list", "aml", "-tsv", "aml_snv.tsv"},
 			Session{
 				Analysis: "snv",
 				Bed:      "aml_snv.bed",
+				Build:    "38",
 				DbList:   "list_aml",
 				List:     "aml",
 				Tsv:      "aml_snv.tsv",
