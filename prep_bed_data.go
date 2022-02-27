@@ -123,6 +123,7 @@ func sortAndMergeRegions(regions []Region, prefix string) (lines [][]string, err
 			overlapRegions = []Region{region}
 		}
 	}
+	lines = append(lines, getBedLine(overlapRegions, prefix))
 	return
 }
 
