@@ -2,8 +2,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/go-test/deep"
 )
@@ -158,7 +160,7 @@ func TestModifyFlagInput(t *testing.T) {
 			},
 			Session{
 				Analysis: "snv",
-				Bed:      "aml_snv_38.bed",
+				Bed:      fmt.Sprintf("aml_snv_38_%s.bed", time.Now().Format("2006-01-02")),
 				Build:    "38",
 				List:     "aml",
 				DbList:   "list_aml",
