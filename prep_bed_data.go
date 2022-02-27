@@ -73,6 +73,13 @@ func sortChromosomes(regions []Region) (sortedRegions []Region) {
 	return
 }
 
+func sortRegions(regions []Region) (sortedRegions []Region) {
+	sort.SliceStable(regions, func(i, j int) bool { return regions[i].End < regions[j].End })
+	sort.SliceStable(regions, func(i, j int) bool { return regions[i].Start < regions[j].Start })
+	sortedRegions = sortChromosomes(regions)
+	return
+}
+
 func regionOverlap(a, b Region) bool {
 	if a.Chromosome == b.Chromosome && a.End >= b.Start {
 		return true
@@ -93,9 +100,18 @@ func overlapAnnotation(regions []Region) (annotation string) {
 	return
 }
 
+func getBedLine(regions []Region, prefix string) (line []string) {
+	line = []string{
+		fmt.Sprintf("%s%s", prefix, regions[0].Chromosome),
+		strconv.Itoa(regions[0].Start),
+		strconv.Itoa(regions[len(regions)-1].End),
+		overlapAnnotation(regions),
+	}
+	return
+}
+
 func sortAndMergeRegions(regions []Region, prefix string) (lines [][]string, err error) {
-	sort.SliceStable(regions, func(i, j int) bool { return regions[i].Start < regions[j].Start })
-	regions = sortChromosomes(regions)
+	regions = sortRegions(regions)
 	var overlapRegions []Region
 	for i, region := range regions {
 		if i == 0 {
@@ -103,7 +119,7 @@ func sortAndMergeRegions(regions []Region, prefix string) (lines [][]string, err
 		} else if regionOverlap(regions[i-1], region) {
 			overlapRegions = append(overlapRegions, region)
 		} else {
-			lines = append(lines, []string{fmt.Sprintf("%s%s", prefix, overlapRegions[0].Chromosome), strconv.Itoa(overlapRegions[0].Start), strconv.Itoa(overlapRegions[len(overlapRegions)-1].End), overlapAnnotation(overlapRegions)})
+			lines = append(lines, getBedLine(overlapRegions, prefix))
 			overlapRegions = []Region{region}
 		}
 	}
