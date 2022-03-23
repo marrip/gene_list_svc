@@ -11,10 +11,18 @@ func (s Session) collectExonCoordinates(entities []Entity) (regions []Region, er
 	for _, entity := range entities {
 		var gene EnsemblGeneObj
 		log.Printf("Retrieve coordinates for %s", entity.Id)
-		gene, err = s.getCoordinates(entity.Ensembl38Id)
-		if err != nil {
-			log.Printf("Did not find coordinates for %s", entity.Ensembl38Id)
-			continue
+		if s.Build == "38" {
+			gene, err = s.getCoordinates(entity.Ensembl38Id)
+			if err != nil {
+				log.Printf("Did not find coordinates for %s, %s", entity.Id, entity.Ensembl38Id)
+				continue
+			}
+		} else if s.Build == "37" {
+			gene, err = s.getCoordinates(entity.Ensembl37Id)
+			if err != nil {
+				log.Printf("Did not find coordinates for %s, %s", entity.Id, entity.Ensembl37Id)
+				continue
+			}
 		}
 		for _, transcript := range gene.Transcripts {
 			for _, exon := range transcript.Exons {

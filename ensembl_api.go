@@ -7,23 +7,23 @@ import (
 	"regexp"
 )
 
-func (s Session) getBuildUrl(build string) string {
-	if build == "37" {
+func (s Session) getBuildUrl() string {
+	if s.Build == "37" {
 		return s.Ensembl37RestUrl
 	}
 	return s.Ensembl38RestUrl
 }
 
-func (s Session) getEnsemblIdUrl(gene string, build string) string {
-	return fmt.Sprintf("%s/xrefs/symbol/homo_sapiens/%s?content-type=application/json", s.getBuildUrl(build), gene)
+func (s Session) getEnsemblIdUrl(gene string) string {
+	return fmt.Sprintf("%s/xrefs/symbol/homo_sapiens/%s?content-type=application/json", s.getBuildUrl(), gene)
 }
 
-func (s Session) getEnsemblSmallGeneUrl(id string, build string) string {
-	return fmt.Sprintf("%s/lookup/id/%s?content-type=application/json", s.getBuildUrl(build), id)
+func (s Session) getEnsemblSmallGeneUrl(id string) string {
+	return fmt.Sprintf("%s/lookup/id/%s?content-type=application/json", s.getBuildUrl(), id)
 }
 
 func (s Session) checkEnsemblIdChromosome(id string, build string) (isMain bool, err error) {
-	body, err := sendHttpRequest(s.getEnsemblSmallGeneUrl(id, build))
+	body, err := sendHttpRequest(s.getEnsemblSmallGeneUrl(id))
 	if err != nil {
 		return
 	}
@@ -39,7 +39,7 @@ func (s Session) checkEnsemblIdChromosome(id string, build string) (isMain bool,
 
 func (s Session) getEnsemblId(gene string, build string) (id string, err error) {
 	ensemblRegex := regexp.MustCompile("ENSG")
-	body, err := sendHttpRequest(s.getEnsemblIdUrl(gene, build))
+	body, err := sendHttpRequest(s.getEnsemblIdUrl(gene))
 	if err != nil {
 		return
 	}
@@ -84,7 +84,7 @@ func (s Session) getEnsemblIds(entities []Entity) (updates []Entity, err error) 
 }
 
 func (s Session) getEnsemblCoordUrl(gene string) string {
-	return fmt.Sprintf("%s/lookup/id/%s?content-type=application/json;expand=1", s.getBuildUrl(s.Build), gene)
+	return fmt.Sprintf("%s/lookup/id/%s?content-type=application/json;expand=1", s.getBuildUrl(), gene)
 }
 
 func (s Session) getCoordinates(id string) (coordinates EnsemblGeneObj, err error) {
