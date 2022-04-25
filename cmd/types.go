@@ -25,8 +25,10 @@ type database struct {
 }
 
 type DbConnection interface {
+	checkRegionExists(table string, region DbTableRow) (exists bool)
 	checkTableExists(table string) (exists bool)
-	dbExec(query string) (err error)
+	createTable(table string) (err error)
+	updateRow(table string, region DbTableRow) (err error)
 }
 
 type web struct {
