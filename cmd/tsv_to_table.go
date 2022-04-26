@@ -24,16 +24,6 @@ func (s Session) tsvToDb() (err error) {
 		} else {
 			err = addRowToDb(row, header)
 		}
-		//for _, table := range dbRow.Tables {
-		//	if err = s.ensureTableExists(table); err != nil {
-		//		return
-		//	}
-		//	if err = s.checkAndAddEntity(table, entity); err != nil {
-		//		return
-		//	}
-		//	if err = s.prepAndAddFusions(table, entity); err != nil {
-		//		return
-		//	}
 	}
 	return
 }
@@ -76,6 +66,12 @@ func addRowToDb(row []string, header []string) (err error) {
 	}
 	for _, table := range dbRow.Tables {
 		table = fmt.Sprintf("table_%s", strings.ToLower(table))
+		if err = ensureTableExists(table); err != nil {
+			return
+		}
+		if err = dbRow.checkAndAddRow(table); err != nil {
+			return
+		}
 	}
 	return
 }
@@ -177,9 +173,32 @@ func generateChromosomeMap() (chromosomes map[string]bool) {
 }
 
 func (d *DbTableRow) validateIncludePartners(include string) (err error) {
+	if _, valid := d.Analyses["sv"]; !valid {
+		err = errors.New(fmt.Sprintf("Cannot include partners for %s as sv analysis is not selected", include))
+	} else if d.Class != "gene" {
+		err = errors.New(fmt.Sprintf("Cannot include partners for %s as class is not gene", include))
+	}
 	d.IncludePartners, err = strconv.ParseBool(include)
 	if err != nil {
 		err = errors.Wrap(err, fmt.Sprintf("%s could not be converted to a valid bool", include))
+	}
+	return
+}
+
+func (d DbTableRow) checkAndAddRow(table string) (err error) {
+	rows := []DbTableRow{d}
+	if d.IncludePartners {
+		rows, err = d.getPartners()
+		if err != nil {
+			return
+		}
+	}
+	for _, row := range rows {
+		if session.Db.Connection.checkRegionExists(table, row) {
+			if err = session.Db.Connection.updateRow(table, row); err != nil {
+				return
+			}
+		}
 	}
 	return
 }

@@ -32,14 +32,14 @@ type DbConnection interface {
 	updateRow(table string, region DbTableRow) (err error)
 }
 
+type dbConnection struct {
+	db *sql.DB
+}
+
 type web struct {
 	AtlasGO   string `env:"ATLAS_ROOT_URL" envDefault:"http://atlasgeneticsoncology.org"`
 	Ensembl38 string `env:"ENSEMBL_38_REST_URL" envDefault:"https://rest.ensembl.org"`
 	Ensembl37 string `env:"ENSEMBL_37_REST_URL" envDefault:"https://grch37.rest.ensembl.org"`
-}
-
-type dbConnection struct {
-	db *sql.DB
 }
 
 type DbTableRow struct {
