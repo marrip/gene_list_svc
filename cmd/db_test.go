@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	//"database/sql/driver"
 	"fmt"
 	"log"
 	"regexp"
@@ -11,7 +10,7 @@ import (
 	"github.com/go-test/deep"
 )
 
-func getMockDb(route string) sqlmock.Sqlmock {
+func getMockDb(route string) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		log.Fatalf(fmt.Sprintf("Could not create mock database. Got Error\n%v", err))
@@ -29,21 +28,33 @@ func getMockDb(route string) sqlmock.Sqlmock {
 		},
 	}
 	switch route {
+	case "cannotCreateNewRow":
+		prep := mock.ExpectPrepare("INSERT INTO \\? \\(id, ensembl_id_38, ensembl_id_37, class, chromosome, start, end, cnv, pindel, snv, sv\\) VALUES \\('\\?', '\\?', '\\?', '\\?', '\\?', '\\?', '\\?', \\?, \\?, \\?, \\?\\)")
+		prep.ExpectExec().WithArgs("existing_table", "GENE1", "", "", "gene", "", "", "", true, false, true, false).WillReturnError(fmt.Errorf("Something went wrong"))
 	case "cannotCreateNewTable":
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM nonexistent_table`)).WillReturnError(fmt.Errorf("Something went wrong"))
 	case "checkAndCreateNewTable":
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM new_table`)).WillReturnError(fmt.Errorf("Something went wrong"))
 		prep := mock.ExpectPrepare("CREATE TABLE \\? \\(id varchar\\(20\\) NOT NULL, ensembl_id_38 varchar\\(20\\) NOT NULL, ensembl_id_37 varchar\\(20\\) NOT NULL, class varchar\\(10\\) NOT NULL, chromosome varchar\\(2\\) NOT NULL, start varchar\\(10\\) NOT NULL, end varchar\\(10\\) NOT NULL, cnv boolean, pindel boolean, snv boolean, sv boolean, PRIMARY KEY \\(id\\)\\)")
 		prep.ExpectExec().WithArgs("new_table").WillReturnResult(sqlmock.NewResult(0, 0))
+	case "createNewRow":
+		prep := mock.ExpectPrepare("INSERT INTO \\? \\(id, ensembl_id_38, ensembl_id_37, class, chromosome, start, end, cnv, pindel, snv, sv\\) VALUES \\('\\?', '\\?', '\\?', '\\?', '\\?', '\\?', '\\?', \\?, \\?, \\?, \\?\\)")
+		prep.ExpectExec().WithArgs("existing_table", "GENE1", "", "", "gene", "", "", "", true, false, true, false).WillReturnResult(sqlmock.NewResult(0, 1))
 	case "createNewTable":
 		prep := mock.ExpectPrepare("CREATE TABLE \\? \\(id varchar\\(20\\) NOT NULL, ensembl_id_38 varchar\\(20\\) NOT NULL, ensembl_id_37 varchar\\(20\\) NOT NULL, class varchar\\(10\\) NOT NULL, chromosome varchar\\(2\\) NOT NULL, start varchar\\(10\\) NOT NULL, end varchar\\(10\\) NOT NULL, cnv boolean, pindel boolean, snv boolean, sv boolean, PRIMARY KEY \\(id\\)\\)")
 		prep.ExpectExec().WithArgs("new_table").WillReturnResult(sqlmock.NewResult(0, 0))
 	case "default":
+	//case "regionExists":
+	//	rows := sqlmock.NewRows([]string{"exists"}).AddRow(true)
+	//	mock.ExpectQuery("SELECT EXISTS \\(SELECT id FROM existing_table WHERE id = 'GENE1'\\);").WillReturnRows(rows)
 	case "tableExists":
 		rows := sqlmock.NewRows([]string{"id", "ensembl_id_38", "ensembl_id_37", "class", "chromosome", "start", "end", "snv", "cnv", "sv", "pindel"})
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM existing_table`)).WillReturnRows(rows)
+	case "updateRow":
+		prep := mock.ExpectPrepare("UPDATE \\? SET cnv = true WHERE id = '\\?';")
+		prep.ExpectExec().WithArgs("existing_table", "GENE1").WillReturnResult(sqlmock.NewResult(0, 1))
 	}
-	return mock
+	return
 }
 
 func TestGetConnectionString(t *testing.T) {
@@ -163,6 +174,133 @@ func TestGetAnalyses(t *testing.T) {
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			result := getAnalyses(c.analyses)
+			if diff := deep.Equal(result, c.result); diff != nil {
+				t.Error(diff)
+			}
+		})
+	}
+}
+
+//func TestCheckRegionExists(t *testing.T) {
+//	var cases = map[string]struct {
+//		table  string
+//		region DbTableRow
+//		route  string
+//		result bool
+//	}{
+//		"Region exists": {
+//			"existing_table",
+//			DbTableRow{
+//				Id: "GENE1",
+//			},
+//			"checkRegionExists",
+//			true,
+//		},
+//	}
+//	for name, c := range cases {
+//		t.Run(name, func(t *testing.T) {
+//			getMockDb(c.route)
+//			result := session.Db.Connection.checkRegionExists(c.table, c.region)
+//			if diff := deep.Equal(result, c.result); diff != nil {
+//				t.Error(diff)
+//			}
+//		})
+//	}
+//}
+
+func TestUpdateRow(t *testing.T) {
+	var cases = map[string]struct {
+		table   string
+		region  DbTableRow
+		route   string
+		wantErr bool
+	}{
+		"Add row successfully": {
+			"existing_table",
+			DbTableRow{
+				Analyses: map[string]struct{}{
+					"cnv": struct{}{},
+				},
+				Id: "GENE1",
+			},
+			"updateRow",
+			false,
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			getMockDb(c.route)
+			err := session.Db.Connection.updateRow(c.table, c.region)
+			checkError(t, err, c.wantErr)
+		})
+	}
+}
+
+func TestAddNewRow(t *testing.T) {
+	var cases = map[string]struct {
+		table   string
+		region  DbTableRow
+		route   string
+		wantErr bool
+	}{
+		"Add row successfully": {
+			"existing_table",
+			DbTableRow{
+				Analyses: map[string]struct{}{
+					"cnv": struct{}{},
+					"snv": struct{}{},
+				},
+				Class: "gene",
+				Id:    "GENE1",
+			},
+			"createNewRow",
+			false,
+		},
+		"Row could not be added": {
+			"existing_table",
+			DbTableRow{
+				Analyses: map[string]struct{}{
+					"cnv": struct{}{},
+					"snv": struct{}{},
+				},
+				Class: "gene",
+				Id:    "GENE1",
+			},
+			"cannotAddNewRow",
+			true,
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			getMockDb(c.route)
+			err := session.Db.Connection.addNewRow(c.table, c.region)
+			checkError(t, err, c.wantErr)
+		})
+	}
+}
+
+func TestGetAnalysis(t *testing.T) {
+	var cases = map[string]struct {
+		analysis string
+		result   bool
+	}{
+		"Return true": {
+			"cnv",
+			true,
+		},
+		"Return false": {
+			"pindel",
+			false,
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			row := DbTableRow{
+				Analyses: map[string]struct{}{
+					"cnv": struct{}{},
+				},
+			}
+			result := row.getAnalysis(c.analysis)
 			if diff := deep.Equal(result, c.result); diff != nil {
 				t.Error(diff)
 			}

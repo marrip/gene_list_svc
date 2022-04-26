@@ -83,6 +83,7 @@ func (d dbConnection) checkRegionExists(table string, region DbTableRow) (exists
 	defer cancel()
 	rows, err := d.db.QueryContext(ctx, fmt.Sprintf("SELECT EXISTS (SELECT id FROM %s WHERE id = '%s');", table, region.Id))
 	if err != nil {
+		fmt.Printf("%v", err)
 		return
 	}
 	defer rows.Close()
@@ -116,18 +117,23 @@ func (d dbConnection) updateRow(table string, region DbTableRow) (err error) {
 func (d dbConnection) addNewRow(table string, region DbTableRow) (err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	query := fmt.Sprintf("INSERT INTO ? (id, ensembl_id_38, ensembl_id_37, class, chromosome, start, end, cnv, pindel, snv, sv) VALUES ('?', '?', '?', '?', '?', '?', '?', %t, %t, %t, %t)", entity.Analyses["snv"], entity.Analyses["cnv"], entity.Analyses["sv"], entity.Analyses["pindel"])
+	query := "INSERT INTO ? (id, ensembl_id_38, ensembl_id_37, class, chromosome, start, end, cnv, pindel, snv, sv) VALUES ('?', '?', '?', '?', '?', '?', '?', ?, ?, ?, ?)"
 	var stmt *sql.Stmt
 	stmt, err = d.db.PrepareContext(ctx, query)
 	if err != nil {
 		return
 	}
 	defer stmt.Close()
-	_, err = stmt.ExecContext(ctx, table, region.Id, region.EnsemblId38, region.EnsemblId37, region.Class, region.Chromosome, region.Start, region.End)
+	_, err = stmt.ExecContext(ctx, table, region.Id, region.EnsemblId38, region.EnsemblId37, region.Class, region.Chromosome, region.Start, region.End, region.getAnalysis("cnv"), region.getAnalysis("pindel"), region.getAnalysis("snv"), region.getAnalysis("sv"))
 	if err != nil {
 		err = errors.Wrap(err, fmt.Sprintf("Could not add region %s to table %s", region.Id, table))
 		return
 	}
 	log.Printf("Region %s was added to table %s.", region.Id, table)
+	return
+}
+
+func (d DbTableRow) getAnalysis(analysis string) (include bool) {
+	_, include = d.Analyses[analysis]
 	return
 }

@@ -25,6 +25,7 @@ type database struct {
 }
 
 type DbConnection interface {
+	addNewRow(table string, region DbTableRow) (err error)
 	checkRegionExists(table string, region DbTableRow) (exists bool)
 	checkTableExists(table string) (exists bool)
 	createTable(table string) (err error)
