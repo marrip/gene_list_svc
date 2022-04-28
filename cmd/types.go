@@ -29,6 +29,8 @@ type DbConnection interface {
 	checkRegionExists(table string, region DbTableRow) (exists bool)
 	checkTableExists(table string) (exists bool)
 	createTable(table string) (err error)
+	getRegions() (regions []DbTableRow, err error)
+	getTables() (tables map[string]struct{}, err error)
 	updateRow(table string, region DbTableRow) (err error)
 }
 

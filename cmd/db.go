@@ -83,7 +83,6 @@ func (d dbConnection) checkRegionExists(table string, region DbTableRow) (exists
 	defer cancel()
 	rows, err := d.db.QueryContext(ctx, fmt.Sprintf(`SELECT EXISTS (SELECT id FROM "%s" WHERE id = '%s');`, table, region.Id))
 	if err != nil {
-		fmt.Printf("%v", err)
 		return
 	}
 	defer rows.Close()
@@ -135,5 +134,56 @@ func (d dbConnection) addNewRow(table string, region DbTableRow) (err error) {
 
 func (d DbTableRow) getAnalysis(analysis string) (include bool) {
 	_, include = d.Analyses[analysis]
+	return
+}
+
+func (d dbConnection) getTables() (tables map[string]struct{}, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	rows, err := d.db.QueryContext(ctx, `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';`)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	var table string
+	tables = make(map[string]struct{})
+	for rows.Next() {
+		err = rows.Scan(&table)
+		if err != nil {
+			return
+		}
+		tables[table] = struct{}{}
+	}
+	if len(tables) == 0 {
+		err = errors.New(fmt.Sprintf("Could not find any tables in %s", session.Db.Name))
+	}
+	return
+}
+
+func (d dbConnection) getRegions() (regions []DbTableRow, err error) {
+	log.Printf("Retriewing %s gene list from %s", session.Analysis, strings.Join(session.Tables, ", "))
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var tableQueries []string
+	for _, table := range session.Tables {
+		tableQueries = append(tableQueries, fmt.Sprintf(`SELECT id, ensembl_id_38, ensembl_id_37 FROM "%s"`, table))
+	}
+	query := fmt.Sprintf("%s;", strings.Join(tableQueries, " UNION "))
+	rows, err := d.db.QueryContext(ctx, query)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	var region DbTableRow
+	for rows.Next() {
+		err = rows.Scan(&region.Id, &region.EnsemblId38, &region.EnsemblId37)
+		if err != nil {
+			return
+		}
+		regions = append(regions, region)
+	}
+	if len(regions) == 0 {
+		err = errors.New(fmt.Sprintf("Could not find any data for %s in table %s", session.Analysis, strings.Join(session.Tables, ", ")))
+	}
 	return
 }
