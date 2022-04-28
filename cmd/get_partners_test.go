@@ -13,7 +13,7 @@ func TestGetPartners(t *testing.T) {
 		result     []DbTableRow
 		wantErr    bool
 	}{
-		"Successful request": {
+		"Successful retrieval of partners": {
 			DbTableRow{
 				Id:    "ABL1",
 				Class: "gene",
@@ -40,6 +40,22 @@ func TestGetPartners(t *testing.T) {
 			},
 			false,
 		},
+		"Gene id not registered": {
+			DbTableRow{
+				Id:    "GENE1",
+				Class: "gene",
+			},
+			nil,
+			true,
+		},
+		"Internal server error": {
+			DbTableRow{
+				Id:    "MLLT10",
+				Class: "gene",
+			},
+			nil,
+			true,
+		},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -47,6 +63,8 @@ func TestGetPartners(t *testing.T) {
 			defer httpmock.DeactivateAndReset()
 			httpmock.RegisterResponder("GET", "/gene-fusions/?id=1",
 				httpmock.NewStringResponder(200, `ABL1 (1p1.1) GENE2 (1q1.1)</li><li class="border list-group-item">GENE3 (10p14) ABL1</ul>`))
+			httpmock.RegisterResponder("GET", "/gene-fusions/?id=4",
+				httpmock.NewStringResponder(500, ""))
 			result, err := c.dbTableRow.getPartners()
 			checkError(t, err, c.wantErr)
 			if diff := deep.Equal(result, c.result); diff != nil {

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -9,10 +10,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (s Session) tsvToDb() (err error) {
-	tsv, err := readTsv(s.Tsv)
+var missingEnsemblIds []DbTableRow
+
+func tsvToDb() (err error) {
+	tsv, err := readTsv(session.Tsv)
 	if err != nil {
-		err = errors.Wrap(err, fmt.Sprintf("Could not read file %s", s.Tsv))
+		err = errors.Wrap(err, fmt.Sprintf("Could not read file %s", session.Tsv))
 		return
 	}
 	var header []string
@@ -21,9 +24,13 @@ func (s Session) tsvToDb() (err error) {
 			if err = validateTsvHeader(row); err != nil {
 				return
 			}
+			header = row
 		} else {
 			err = addRowToDb(row, header)
 		}
+	}
+	if len(missingEnsemblIds) > 0 {
+		log.Printf("The following ids were not found and excluded: %s\n\tDouble check spelling or consider classing them as regions", getMissingEnsemblIds())
 	}
 	return
 }
@@ -65,7 +72,7 @@ func addRowToDb(row []string, header []string) (err error) {
 		return
 	}
 	for _, table := range dbRow.Tables {
-		table = fmt.Sprintf("table_%s", strings.ToLower(table))
+		table = strings.ToLower(table)
 		if err = ensureTableExists(table); err != nil {
 			return
 		}
@@ -129,7 +136,7 @@ func (d *DbTableRow) validateClass(class string) (err error) {
 }
 
 func (d *DbTableRow) validateCoordinates(coordinates string) (err error) {
-	if coordinates == "" {
+	if coordinates == "" || d.Class != "region" {
 		return
 	}
 	coordRegex := regexp.MustCompile("^(chr)?[\\d,X,Y,M]\\d?:\\d+-\\d+$")
@@ -173,14 +180,18 @@ func generateChromosomeMap() (chromosomes map[string]bool) {
 }
 
 func (d *DbTableRow) validateIncludePartners(include string) (err error) {
-	if _, valid := d.Analyses["sv"]; !valid {
-		err = errors.New(fmt.Sprintf("Cannot include partners for %s as sv analysis is not selected", include))
-	} else if d.Class != "gene" {
-		err = errors.New(fmt.Sprintf("Cannot include partners for %s as class is not gene", include))
-	}
 	d.IncludePartners, err = strconv.ParseBool(include)
 	if err != nil {
 		err = errors.Wrap(err, fmt.Sprintf("%s could not be converted to a valid bool", include))
+	}
+	if d.IncludePartners {
+		if _, valid := d.Analyses["sv"]; !valid {
+			d.IncludePartners = false
+			err = errors.New(fmt.Sprintf("Cannot include partners for %s as sv analysis is not selected", d.Id))
+		} else if d.Class != "gene" {
+			d.IncludePartners = false
+			err = errors.New(fmt.Sprintf("Cannot include partners for %s as class is not gene", d.Id))
+		}
 	}
 	return
 }
@@ -198,6 +209,28 @@ func (d DbTableRow) checkAndAddRow(table string) (err error) {
 			if err = session.Db.Connection.updateRow(table, row); err != nil {
 				return
 			}
+		} else {
+			if err = row.getEnsemblIds(); err != nil {
+				return
+			}
+			if row.Class != "region" && row.EnsemblId37 == "" && row.EnsemblId38 == "" {
+				missingEnsemblIds = append(missingEnsemblIds, row)
+				continue
+			}
+			if err = session.Db.Connection.addNewRow(table, row); err != nil {
+				return
+			}
+		}
+	}
+	return
+}
+
+func getMissingEnsemblIds() (message string) {
+	for i, id := range missingEnsemblIds {
+		if i == 0 {
+			message = fmt.Sprintf("%s (%s)", id.Id, id.Class)
+		} else {
+			message = strings.Join([]string{message, fmt.Sprintf("%s (%s)", id.Id, id.Class)}, ",")
 		}
 	}
 	return

@@ -43,7 +43,7 @@ func ensureTableExists(table string) (err error) {
 func (d dbConnection) checkTableExists(table string) (exists bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	rows, err := d.db.QueryContext(ctx, fmt.Sprintf("SELECT * FROM %s", table))
+	rows, err := d.db.QueryContext(ctx, fmt.Sprintf(`SELECT * FROM "%s"`, table))
 	if err != nil {
 		return
 	}
@@ -55,14 +55,14 @@ func (d dbConnection) checkTableExists(table string) (exists bool) {
 func (d dbConnection) createTable(table string) (err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	query := fmt.Sprintf("CREATE TABLE ? (id varchar(20) NOT NULL, ensembl_id_38 varchar(20) NOT NULL, ensembl_id_37 varchar(20) NOT NULL, class varchar(10) NOT NULL, chromosome varchar(2) NOT NULL, start varchar(10) NOT NULL, end varchar(10) NOT NULL, %s boolean, PRIMARY KEY (id))", strings.Join(getAnalyses(analyses), " boolean, "))
+	query := fmt.Sprintf(`CREATE TABLE "%s" (id varchar(20) NOT NULL, ensembl_id_38 varchar(20) NOT NULL, ensembl_id_37 varchar(20) NOT NULL, class varchar(10) NOT NULL, chromosome varchar(2) NOT NULL, start varchar(10) NOT NULL, "end" varchar(10) NOT NULL, %s boolean, PRIMARY KEY (id));`, table, strings.Join(getAnalyses(analyses), " boolean, "))
 	var stmt *sql.Stmt
 	stmt, err = d.db.PrepareContext(ctx, query)
 	if err != nil {
 		return
 	}
 	defer stmt.Close()
-	_, err = stmt.ExecContext(ctx, table)
+	_, err = stmt.ExecContext(ctx)
 	if err != nil {
 		return
 	}
@@ -81,7 +81,7 @@ func getAnalyses(analyses map[string]struct{}) (analysesSlice []string) {
 func (d dbConnection) checkRegionExists(table string, region DbTableRow) (exists bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	rows, err := d.db.QueryContext(ctx, fmt.Sprintf("SELECT EXISTS (SELECT id FROM %s WHERE id = '%s');", table, region.Id))
+	rows, err := d.db.QueryContext(ctx, fmt.Sprintf(`SELECT EXISTS (SELECT id FROM "%s" WHERE id = '%s');`, table, region.Id))
 	if err != nil {
 		fmt.Printf("%v", err)
 		return
@@ -99,14 +99,14 @@ func (d dbConnection) checkRegionExists(table string, region DbTableRow) (exists
 func (d dbConnection) updateRow(table string, region DbTableRow) (err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	query := fmt.Sprintf("UPDATE ? SET %s = true WHERE id = '?';", strings.Join(getAnalyses(region.Analyses), " = true, "))
+	query := fmt.Sprintf(`UPDATE "%s" SET %s = true WHERE id = '%s';`, table, strings.Join(getAnalyses(region.Analyses), " = true, "), region.Id)
 	var stmt *sql.Stmt
 	stmt, err = d.db.PrepareContext(ctx, query)
 	if err != nil {
 		return
 	}
 	defer stmt.Close()
-	_, err = stmt.ExecContext(ctx, table, region.Id)
+	_, err = stmt.ExecContext(ctx)
 	if err != nil {
 		return
 	}
@@ -117,14 +117,14 @@ func (d dbConnection) updateRow(table string, region DbTableRow) (err error) {
 func (d dbConnection) addNewRow(table string, region DbTableRow) (err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	query := "INSERT INTO ? (id, ensembl_id_38, ensembl_id_37, class, chromosome, start, end, cnv, pindel, snv, sv) VALUES ('?', '?', '?', '?', '?', '?', '?', ?, ?, ?, ?)"
+	query := fmt.Sprintf(`INSERT INTO "%s" (id, ensembl_id_38, ensembl_id_37, class, chromosome, start, "end", cnv, pindel, snv, sv) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', %t, %t, %t, %t)`, table, region.Id, region.EnsemblId38, region.EnsemblId37, region.Class, region.Chromosome, region.Start, region.End, region.getAnalysis("cnv"), region.getAnalysis("pindel"), region.getAnalysis("snv"), region.getAnalysis("sv"))
 	var stmt *sql.Stmt
 	stmt, err = d.db.PrepareContext(ctx, query)
 	if err != nil {
 		return
 	}
 	defer stmt.Close()
-	_, err = stmt.ExecContext(ctx, table, region.Id, region.EnsemblId38, region.EnsemblId37, region.Class, region.Chromosome, region.Start, region.End, region.getAnalysis("cnv"), region.getAnalysis("pindel"), region.getAnalysis("snv"), region.getAnalysis("sv"))
+	_, err = stmt.ExecContext(ctx)
 	if err != nil {
 		err = errors.Wrap(err, fmt.Sprintf("Could not add region %s to table %s", region.Id, table))
 		return

@@ -3,6 +3,7 @@ package cmd
 import (
 	"log"
 
+	_ "github.com/lib/pq"
 	"github.com/spf13/cobra"
 )
 
@@ -14,6 +15,12 @@ var updateCmd = &cobra.Command{
 		var err error
 		session.Tsv, err = cmd.Flags().GetString("tsv")
 		if err != nil {
+			log.Fatalf("%v", err)
+		}
+		if err = session.initDbConnection(); err != nil {
+			log.Fatalf("%v", err)
+		}
+		if err = tsvToDb(); err != nil {
 			log.Fatalf("%v", err)
 		}
 	},

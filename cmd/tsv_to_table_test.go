@@ -107,6 +107,120 @@ func TestRowToMap(t *testing.T) {
 	}
 }
 
+func TestMapToDbRow(t *testing.T) {
+	var cases = map[string]struct {
+		row     map[string]string
+		result  DbTableRow
+		wantErr bool
+	}{
+		"All values are valid": {
+			map[string]string{
+				"analyses":         "snv,sv",
+				"class":            "gene",
+				"id":               "RUNX1",
+				"include_partners": "true",
+				"tables":           "my_list",
+			},
+			DbTableRow{
+				Analyses: map[string]struct{}{
+					"snv": struct{}{},
+					"sv":  struct{}{},
+				},
+				Class:           "gene",
+				Id:              "RUNX1",
+				IncludePartners: true,
+				Tables: []string{
+					"my_list",
+				},
+			},
+			false,
+		},
+		"Region is class region": {
+			map[string]string{
+				"analyses":         "snv",
+				"class":            "region",
+				"coordinates":      "chr1:1-10",
+				"id":               "REGION1",
+				"include_partners": "false",
+				"tables":           "my_list",
+			},
+			DbTableRow{
+				Analyses: map[string]struct{}{
+					"snv": struct{}{},
+				},
+				Chromosome:      "1",
+				Class:           "region",
+				End:             "10",
+				Id:              "REGION1",
+				IncludePartners: false,
+				Start:           "1",
+				Tables: []string{
+					"my_list",
+				},
+			},
+			false,
+		},
+		"Analysis does not exist": {
+			map[string]string{
+				"analyses": "tsv",
+			},
+			DbTableRow{
+				Analyses: map[string]struct{}{},
+			},
+			true,
+		},
+		"Class does not exist": {
+			map[string]string{
+				"analyses": "sv",
+				"class":    "nonesense",
+			},
+			DbTableRow{
+				Analyses: map[string]struct{}{
+					"sv": struct{}{},
+				},
+			},
+			true,
+		},
+		"Coordinates are invalid": {
+			map[string]string{
+				"analyses":    "sv",
+				"class":       "region",
+				"coordinates": "300:1-99",
+			},
+			DbTableRow{
+				Analyses: map[string]struct{}{
+					"sv": struct{}{},
+				},
+				Class: "region",
+			},
+			true,
+		},
+		"Analyses do not allow include partners": {
+			map[string]string{
+				"analyses":         "snv",
+				"class":            "gene",
+				"include_partners": "true",
+			},
+			DbTableRow{
+				Analyses: map[string]struct{}{
+					"snv": struct{}{},
+				},
+				Class: "gene",
+			},
+			true,
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			result, err := mapToDbRow(c.row)
+			checkError(t, err, c.wantErr)
+			if diff := deep.Equal(result, c.result); diff != nil {
+				t.Error(diff)
+			}
+		})
+	}
+}
+
 func TestValidateAnalyses(t *testing.T) {
 	var cases = map[string]struct {
 		dbTableRow DbTableRow
@@ -188,29 +302,49 @@ func TestValidateCoordinates(t *testing.T) {
 		wantErr     bool
 	}{
 		"Coordinates are valid without prefix": {
-			DbTableRow{},
+			DbTableRow{
+				Class: "region",
+			},
 			"1:0-10",
 			DbTableRow{
 				Chromosome: "1",
-				Start:      "0",
+				Class:      "region",
 				End:        "10",
+				Start:      "0",
 			},
 			false,
 		},
 		"Coordinates are valid with prefix": {
-			DbTableRow{},
+			DbTableRow{
+				Class: "region",
+			},
 			"chrX:10-24",
 			DbTableRow{
 				Chromosome: "X",
-				Start:      "10",
+				Class:      "region",
 				End:        "24",
+				Start:      "10",
+			},
+			false,
+		},
+		"Coordinates linked to wrong class": {
+			DbTableRow{
+				Class: "gene",
+			},
+			"chr10:10-24",
+			DbTableRow{
+				Class: "gene",
 			},
 			false,
 		},
 		"Coordinates are invalid": {
-			DbTableRow{},
+			DbTableRow{
+				Class: "region",
+			},
 			"chr100:10-24",
-			DbTableRow{},
+			DbTableRow{
+				Class: "region",
+			},
 			true,
 		},
 	}
@@ -296,6 +430,80 @@ func TestGenerateChromosomeMap(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			result := generateChromosomeMap()
 			if diff := deep.Equal(result, c.result); diff != nil {
+				t.Error(diff)
+			}
+		})
+	}
+}
+
+func TestValidateIncludePartners(t *testing.T) {
+	var cases = map[string]struct {
+		row     DbTableRow
+		include string
+		result  DbTableRow
+		wantErr bool
+	}{
+		"Sucessfully parse value": {
+			DbTableRow{
+				Analyses: map[string]struct{}{
+					"sv": struct{}{},
+				},
+				Class: "gene",
+			},
+			"true",
+			DbTableRow{
+				Analyses: map[string]struct{}{
+					"sv": struct{}{},
+				},
+				Class:           "gene",
+				IncludePartners: true,
+			},
+			false,
+		},
+		"Value can not be parsed": {
+			DbTableRow{},
+			"nonesense",
+			DbTableRow{},
+			true,
+		},
+		"Analysis is not sv": {
+			DbTableRow{
+				Analyses: map[string]struct{}{
+					"snv": struct{}{},
+				},
+				Class: "gene",
+			},
+			"true",
+			DbTableRow{
+				Analyses: map[string]struct{}{
+					"snv": struct{}{},
+				},
+				Class: "gene",
+			},
+			true,
+		},
+		"Class is not gene": {
+			DbTableRow{
+				Analyses: map[string]struct{}{
+					"sv": struct{}{},
+				},
+				Class: "region",
+			},
+			"true",
+			DbTableRow{
+				Analyses: map[string]struct{}{
+					"sv": struct{}{},
+				},
+				Class: "region",
+			},
+			true,
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			err := c.row.validateIncludePartners(c.include)
+			checkError(t, err, c.wantErr)
+			if diff := deep.Equal(c.row, c.result); diff != nil {
 				t.Error(diff)
 			}
 		})
