@@ -82,11 +82,11 @@ func getLookUpUrl(id string, build string, expand bool) string {
 	return fmt.Sprintf("%s/lookup/id/%s?content-type=application/json%s", getBuildUrl(build), id, expandString)
 }
 
-//func (s Session) getCoordinates(id string) (coordinates EnsemblGeneObj, err error) {
-//	body, err := sendHttpRequest(s.getEnsemblCoordUrl(id))
-//	if err != nil {
-//		return
-//	}
-//	json.Unmarshal(body, &coordinates)
-//	return
-//}
+func (d DbTableRow) getCoordinates(expand bool) (body []byte, err error) {
+	if session.Build == "38" && d.EnsemblId38 != "" {
+		body, err = sendHttpRequest(getLookUpUrl(d.EnsemblId38, session.Build, expand))
+	} else if session.Build == "37" && d.EnsemblId37 != "" {
+		body, err = sendHttpRequest(getLookUpUrl(d.EnsemblId37, session.Build, expand))
+	}
+	return
+}
