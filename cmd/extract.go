@@ -18,6 +18,9 @@ var extractCmd = &cobra.Command{
 		if err := getExtractFlags(*cmd); err != nil {
 			log.Fatalf("%v", err)
 		}
+		if err := dbToTsv(); err != nil {
+			log.Fatalf("%v", err)
+		}
 	},
 }
 
