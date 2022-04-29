@@ -166,7 +166,7 @@ func (d dbConnection) getRegions() (regions []DbTableRow, err error) {
 	defer cancel()
 	var tableQueries []string
 	for _, table := range session.Tables {
-		tableQueries = append(tableQueries, fmt.Sprintf(`SELECT id, ensembl_id_38, ensembl_id_37 FROM "%s"`, table))
+		tableQueries = append(tableQueries, fmt.Sprintf(`SELECT id, ensembl_id_38, ensembl_id_37, class, chromosome, start, "end" FROM "%s" WHERE %s = true`, table, session.Analysis))
 	}
 	query := fmt.Sprintf("%s;", strings.Join(tableQueries, " UNION "))
 	rows, err := d.db.QueryContext(ctx, query)
@@ -176,7 +176,7 @@ func (d dbConnection) getRegions() (regions []DbTableRow, err error) {
 	defer rows.Close()
 	var region DbTableRow
 	for rows.Next() {
-		err = rows.Scan(&region.Id, &region.EnsemblId38, &region.EnsemblId37)
+		err = rows.Scan(&region.Id, &region.EnsemblId38, &region.EnsemblId37, &region.Class, &region.Chromosome, &region.Start, &region.End)
 		if err != nil {
 			return
 		}
