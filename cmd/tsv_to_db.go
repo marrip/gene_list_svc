@@ -26,11 +26,13 @@ func tsvToDb() (err error) {
 			}
 			header = row
 		} else {
-			err = addRowToDb(row, header)
+			if err = addRowToDb(row, header); err != nil {
+				log.Printf("%v", err)
+			}
 		}
 	}
 	if len(missingEnsemblIds) > 0 {
-		log.Printf("The following ids were not found and excluded: %s\n\tDouble check spelling or consider classing them as regions", getMissingEnsemblIds())
+		log.Printf("The following ids were not found and excluded: %s. Double check spelling or consider classing them as regions", getMissingEnsemblIds())
 	}
 	return
 }
@@ -183,14 +185,15 @@ func (d *DbTableRow) validateIncludePartners(include string) (err error) {
 	d.IncludePartners, err = strconv.ParseBool(include)
 	if err != nil {
 		err = errors.Wrap(err, fmt.Sprintf("%s could not be converted to a valid bool", include))
+		return
 	}
 	if d.IncludePartners {
 		if _, valid := d.Analyses["sv"]; !valid {
 			d.IncludePartners = false
-			err = errors.New(fmt.Sprintf("Cannot include partners for %s as sv analysis is not selected", d.Id))
+			log.Printf("Cannot include partners for %s as sv analysis is not selected", d.Id)
 		} else if d.Class != "gene" {
 			d.IncludePartners = false
-			err = errors.New(fmt.Sprintf("Cannot include partners for %s as class is not gene", d.Id))
+			log.Printf("Cannot include partners for %s as class is not gene", d.Id)
 		}
 	}
 	return
