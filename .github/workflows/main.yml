@@ -73,7 +73,7 @@ jobs:
         uses: docker/metadata-action@v3
         with:
           images: |
-            marrip/bed_taste
+            marrip/gene_list_svc
           tags: |
             latest
             type=semver,pattern={{version}}
