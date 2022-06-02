@@ -58,25 +58,22 @@ type DbTableRow struct {
 }
 
 type EnsemblGeneObj struct {
-	EnsemblId   string            `json:"id"`
 	Chromosome  string            `json:"seq_region_name"`
-	Start       int               `json:"start"`
-	End         int               `json:"end"`
+	EnsemblId   string            `json:"id"`
+	Id          string            `json:"display_name"`
 	Transcripts []EnsemblTransObj `json:"Transcript"`
 }
 
 type EnsemblTransObj struct {
-	EnsemblId  string           `json:"id"`
-	Chromosome string           `json:"seq_region_name"`
-	Start      int              `json:"start"`
-	End        int              `json:"end"`
-	Exons      []EnsemblBaseObj `json:"Exon"`
+	EnsemblId string           `json:"id"`
+	Exons     []EnsemblBaseObj `json:"Exon"`
 }
 
 type EnsemblBaseObj struct {
+	Annotation string
 	Chromosome string `json:"seq_region_name"`
 	End        int    `json:"end"`
 	EnsemblId  string `json:"id"`
 	Start      int    `json:"start"`
-	Transcript []string
+	Transcript string
 }
