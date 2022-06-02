@@ -200,14 +200,16 @@ func TestMapToDbRow(t *testing.T) {
 				"analyses":         "snv",
 				"class":            "gene",
 				"include_partners": "true",
+				"tables":           "test",
 			},
 			DbTableRow{
 				Analyses: map[string]struct{}{
 					"snv": struct{}{},
 				},
-				Class: "gene",
+				Class:  "gene",
+				Tables: []string{"test"},
 			},
-			true,
+			false,
 		},
 	}
 	for name, c := range cases {
@@ -480,7 +482,7 @@ func TestValidateIncludePartners(t *testing.T) {
 				},
 				Class: "gene",
 			},
-			true,
+			false,
 		},
 		"Class is not gene": {
 			DbTableRow{
@@ -496,7 +498,7 @@ func TestValidateIncludePartners(t *testing.T) {
 				},
 				Class: "region",
 			},
-			true,
+			false,
 		},
 	}
 	for name, c := range cases {
