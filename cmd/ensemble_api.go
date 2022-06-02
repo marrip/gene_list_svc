@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+
+	"github.com/pkg/errors"
 )
 
 func (d *DbTableRow) getEnsemblIds() (err error) {
@@ -85,8 +87,12 @@ func getLookUpUrl(id string, build string, expand bool) string {
 func (d DbTableRow) getCoordinates(expand bool) (body []byte, err error) {
 	if session.Build == "38" && d.EnsemblId38 != "" {
 		body, err = sendHttpRequest(getLookUpUrl(d.EnsemblId38, session.Build, expand))
+	} else if session.Build == "38" && d.EnsemblId37 != "" {
+		err = errors.New(fmt.Sprintf("Did not find %s for GRCh38 but GRCh37", d.Id))
 	} else if session.Build == "37" && d.EnsemblId37 != "" {
 		body, err = sendHttpRequest(getLookUpUrl(d.EnsemblId37, session.Build, expand))
+	} else if session.Build == "37" && d.EnsemblId38 != "" {
+		err = errors.New(fmt.Sprintf("Did not find %s for GRCh37 but GRCh38", d.Id))
 	}
 	return
 }
