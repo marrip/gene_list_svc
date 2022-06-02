@@ -33,6 +33,10 @@ func getMockDb(route string) {
 		prep.ExpectExec().WithArgs().WillReturnError(fmt.Errorf("Something went wrong"))
 	case "cannotCreateNewTable":
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "nonexistent_table"`)).WillReturnError(fmt.Errorf("Something went wrong"))
+	case "cannotGetRegions":
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, ensembl_id_38, ensembl_id_37, class, chromosome, start, "end" FROM "test" WHERE snv = true;`)).WillReturnError(fmt.Errorf("Something went wrong"))
+	case "cannotGetTables":
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';`)).WillReturnError(fmt.Errorf("Something went wrong"))
 	case "checkAndCreateNewTable":
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "new_table"`)).WillReturnError(fmt.Errorf("Something went wrong"))
 		prep := mock.ExpectPrepare(regexp.QuoteMeta(`CREATE TABLE "new_table" (id varchar(20) NOT NULL, ensembl_id_38 varchar(20) NOT NULL, ensembl_id_37 varchar(20) NOT NULL, class varchar(10) NOT NULL, chromosome varchar(2) NOT NULL, start varchar(10) NOT NULL, "end" varchar(10) NOT NULL, cnv boolean, pindel boolean, snv boolean, sv boolean, PRIMARY KEY (id))`))
@@ -44,6 +48,12 @@ func getMockDb(route string) {
 		prep := mock.ExpectPrepare(regexp.QuoteMeta(`CREATE TABLE "new_table" (id varchar(20) NOT NULL, ensembl_id_38 varchar(20) NOT NULL, ensembl_id_37 varchar(20) NOT NULL, class varchar(10) NOT NULL, chromosome varchar(2) NOT NULL, start varchar(10) NOT NULL, "end" varchar(10) NOT NULL, cnv boolean, pindel boolean, snv boolean, sv boolean, PRIMARY KEY (id))`))
 		prep.ExpectExec().WithArgs().WillReturnResult(sqlmock.NewResult(0, 0))
 	case "default":
+	case "getRegions":
+		rows := sqlmock.NewRows([]string{"id", "ensembl_id_38", "ensembl_id_37", "class", "chromosome", "start", "end"}).AddRow("GENE1", "ENSG001", "ENSG001", "gene", "1", "1", "100")
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, ensembl_id_38, ensembl_id_37, class, chromosome, start, "end" FROM "test" WHERE snv = true;`)).WillReturnRows(rows)
+	case "getTables":
+		rows := sqlmock.NewRows([]string{"table_name"}).AddRow("test")
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';`)).WillReturnRows(rows)
 	case "regionExists":
 		rows := sqlmock.NewRows([]string{"exists"}).AddRow(true)
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT EXISTS (SELECT id FROM "existing_table" WHERE id = 'GENE1');`)).WillReturnRows(rows)
@@ -301,6 +311,78 @@ func TestGetAnalysis(t *testing.T) {
 				},
 			}
 			result := row.getAnalysis(c.analysis)
+			if diff := deep.Equal(result, c.result); diff != nil {
+				t.Error(diff)
+			}
+		})
+	}
+}
+
+func TestGetTables(t *testing.T) {
+	var cases = map[string]struct {
+		route   string
+		result  map[string]struct{}
+		wantErr bool
+	}{
+		"Get tables successfully": {
+			"getTables",
+			map[string]struct{}{
+				"test": {},
+			},
+			false,
+		},
+		"Could not get tables": {
+			"cannotGetTables",
+			nil,
+			true,
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			getMockDb(c.route)
+			result, err := session.Db.Connection.getTables()
+			checkError(t, err, c.wantErr)
+			if diff := deep.Equal(result, c.result); diff != nil {
+				t.Error(diff)
+			}
+		})
+	}
+}
+
+func TestGetRegions(t *testing.T) {
+	var cases = map[string]struct {
+		route   string
+		result  []DbTableRow
+		wantErr bool
+	}{
+		"Get regions successfully": {
+			"getRegions",
+			[]DbTableRow{
+				DbTableRow{
+					Id:          "GENE1",
+					EnsemblId37: "ENSG001",
+					EnsemblId38: "ENSG001",
+					Class:       "gene",
+					Chromosome:  "1",
+					Start:       "1",
+					End:         "100",
+				},
+			},
+			false,
+		},
+		"Could not get regions": {
+			"cannotGetRegions",
+			nil,
+			true,
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			getMockDb(c.route)
+			session.Analysis = "snv"
+			session.Tables = []string{"test"}
+			result, err := session.Db.Connection.getRegions()
+			checkError(t, err, c.wantErr)
 			if diff := deep.Equal(result, c.result); diff != nil {
 				t.Error(diff)
 			}
