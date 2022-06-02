@@ -14,12 +14,12 @@ jobs:
     steps:
       - 
         name: Install Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3.2.0
         with:
           go-version: 1.17.x
       -
         name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3.0.2
       -
         name: Test
         run: go test ./... -coverprofile=cov.out
@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - 
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3.0.2
         with:
           fetch-depth: 0
       - 
@@ -45,7 +45,7 @@ jobs:
           name: code-coverage-report
       - 
         name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@master
+        uses: SonarSource/sonarcloud-github-action@v1.6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -63,10 +63,10 @@ jobs:
     steps:
       - 
         name: Check out the repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3.0.2
       - 
         name: Lint Dockerfile
-        uses: brpaz/hadolint-action@v1.2.1
+        uses: brpaz/hadolint-action@v1.9.1
       - 
         name: Docker Meta
         id: meta
