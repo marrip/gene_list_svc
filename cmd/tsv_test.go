@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"log"
@@ -8,6 +8,12 @@ import (
 	"github.com/go-test/deep"
 )
 
+func checkError(t *testing.T, err error, exp bool) {
+	if (err != nil) != exp {
+		t.Errorf("Expectation and result are different. Error is\n%v", err)
+	}
+}
+
 func TestReadTsv(t *testing.T) {
 	var cases = map[string]struct {
 		path    string
@@ -15,7 +21,7 @@ func TestReadTsv(t *testing.T) {
 		wantErr bool
 	}{
 		"File exists": {
-			"test_data/test.tsv",
+			"../.test/test.tsv",
 			[][]string{
 				{
 					"ABL1",
@@ -28,7 +34,7 @@ func TestReadTsv(t *testing.T) {
 			false,
 		},
 		"File does not exist": {
-			"test_data/not_existent.tsv",
+			"../.test/not_existent.tsv",
 			nil,
 			true,
 		},
@@ -51,7 +57,7 @@ func TestWriteTsv(t *testing.T) {
 		wantErr bool
 	}{
 		"Write data successfully": {
-			"test_data/test_output.tsv",
+			"../.test/test_output.tsv",
 			[][]string{
 				{
 					"ABL1",
@@ -64,7 +70,7 @@ func TestWriteTsv(t *testing.T) {
 			false,
 		},
 		"Data writing fails": {
-			"test_data/not_existent/test_output.tsv",
+			"../.test/not_existent/test_output.tsv",
 			[][]string{
 				{
 					"ABL1",

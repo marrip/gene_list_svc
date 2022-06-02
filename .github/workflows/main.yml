@@ -1,0 +1,93 @@
+name: Complete Build
+on:
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - '*.*.*'
+
+jobs:
+  test:
+    name: Unit Testing
+    runs-on: ubuntu-latest
+    steps:
+      - 
+        name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.15.x
+      -
+        name: Checkout code
+        uses: actions/checkout@v2
+      -
+        name: Test
+        run: go test ./... -coverprofile=cov.out
+      - 
+        name: Archive Code Coverage Report
+        uses: actions/upload-artifact@v1
+        with:
+          name: code-coverage-report
+          path: cov.out
+  sonarcloud:
+    name: SonarCloud
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - 
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - 
+        name: Download code coverage results
+        uses: actions/download-artifact@v1
+        with:
+          name: code-coverage-report
+      - 
+        name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=marrip
+            -Dsonar.projectKey=marrip_gene_list_svc
+            -Dsonar.projectName=Gene_List_Svc
+            -Dsonar.go.coverage.reportPaths=code-coverage-report/cov.out
+            -Dsonar.exclusions=**/*_test.go
+  build:
+    name: Build Image
+    needs: sonarcloud
+    runs-on: ubuntu-latest
+    steps:
+      - 
+        name: Check out the repo
+        uses: actions/checkout@v2
+      - 
+        name: Lint Dockerfile
+        uses: brpaz/hadolint-action@v1.2.1
+      - 
+        name: Docker Meta
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: |
+            marrip/bed_taste
+          tags: |
+            latest
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+      - 
+        name: Login to Dockerhub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - 
+        name: Build and push image to Docker Hub
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}

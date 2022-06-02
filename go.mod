@@ -8,7 +8,12 @@ require (
 )
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.0 // indirect
 	github.com/go-test/deep v1.0.8 // indirect
+	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/jarcoal/httpmock v1.1.0 // indirect
 	github.com/lib/pq v1.10.3 // indirect
 	github.com/mpvl/unique v0.0.0-20150818121801-cbe035fff7de // indirect
+	github.com/spf13/cobra v1.4.0 // indirect
+	github.com/spf13/pflag v1.0.5 // indirect
 )

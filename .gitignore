@@ -1,1 +1,3 @@
 *.bed
+*.tsv
+!.test/test.tsv
