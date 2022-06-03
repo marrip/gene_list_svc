@@ -31,28 +31,47 @@ ENSEMBL_37_REST_URL | - | https://grch37.rest.ensembl.org
 ## :checkered_flag: Flags
 
 ```bash
-  -analysis string
-    	Select analysis (snv, cnv, sv, pindel).
-  -bed string
-    	Output bed file name (default: [list]_[analysis]_[build].bed).
-  -build string
-    	Select genome build (37, 38; default: 38).
-  -list string
-    	Select gene list (aml, aml_ext, all).
-  -tsv string
-    	Path to tsv file containing gene list.
+  update
+  --tsv string
+      tsv containg list of genetic regions
+
+  extract
+  --analysis string
+      choose analysis (cnv, pindel, snv, sv)
+  --bed string
+      set individual bed file name
+  --build string
+      choose genome build
+  --chr bool
+      use chr-prefix for chromosome ids
+  --tables string
+      comma-separated list of tables to be included
 ```
 
 ## :rocket: Usage
 
-### Start docker containers - *Still under development - no docker available yet!*
+### Start docker containers
 
-To use this cli, a postgres database server is needed and start the cli docker
-with an interactive session:
+To use this cli, a postgres database server is needed with a docker network connection
+and the gene list database:
 
 ```bash
-docker run -d -e POSTGRES_PASSWORD=notsosecret postgres
-docker run -it --rm marrip/gene_list_svc:latest bash
+$ docker network create -d bridge gene_list_svc
+$ docker run -d --name gene_list_svc_db -e POSTGRES_PASSWORD=notsosecret --network=gene_list_svc postgres
+$ docker exec -it gene_list_svc_db bash
+$ psql -U postgres
+> CREATE DATABASE gene_list;
+> \q
+$ exit
+```
+
+The second step is to create an instance of the gene_list_svc container which is on the
+same network and has an input/output directory mounted:
+
+```bash
+$ docker run -it --rm -e DB_USER=postgres -e DB_PASSWORD=notsosecret -e DB_HOST=gene_list_svc_db --network=gene_list_svc -v /Path/on/host/to/input/output:/data marrip/gene_list_svc:latest bash
+$ cd /data
+$ gene_list_svc extract --analysis snv --tables my_table
 ```
 
 ### Input `.tsv` file
@@ -60,25 +79,32 @@ docker run -it --rm marrip/gene_list_svc:latest bash
 To load new data into the database, compile a `.tsv` file like so:
 
 ```bash
-BCR	Gene	snv	aml	Specific
-KMT2A	Gene	sv	all	All
-RUNX1	Gene	snv,sv,cnv	aml,all	Specific
+id	class	analyses	tables	include_partners	coordinates
+ABL1	gene	snv,sv	aml	true
+NM_000964.4 transcript  snv aml false
+ENSE00001422265 exon  snv aml false
+my_region region  snv aml false 5:55000-60000
 ...
 ```
+
+The coordinates column can be skipped if no region of class `region` is supplied.
 
 ### Adding data to database
 
 To add data from a `.tsv` file, simply run:
 
 ```bash
-gene_list_svc -tsv /path/to/data.tsv
+$ gene_list_svc update --tsv my_genes.tsv
 ```
 
 ### Retrieve data and write to bed file
 
-Choose analysis, diagnostic route, genome build and desired `.bed` file
+Choose analysis, db tables, genome build and desired `.bed` file
 name to retrieve data from the database:
 
 ```bash
-gene_list_svc -list aml -analysis snv -build 38 -bed /path/to/aml_snv_38.bed
+$ gene_list_svc extract --analysis snv --tables my_table,your_table --build 38 --bed my_genes.bed
 ```
+
+The flag `--chr` can be set to false if the `chr` prefix for chromosomes
+is not desired.
